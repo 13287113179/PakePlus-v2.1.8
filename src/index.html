@@ -1,11 +1,1914 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        Hello World
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel数据分析可视化工具</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- SheetJS for Excel parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- html2canvas for chart export -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1a56db',
+                        secondary: '#e2e8f0',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                        dark: '#1e293b',
+                        light: '#f8fafc'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    },
+                    boxShadow: {
+                        card: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+            .scrollbar-thin {
+                scrollbar-width: thin;
+            }
+            .scrollbar-thin::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+            .scrollbar-thin::-webkit-scrollbar-track {
+                background: #f1f5f9;
+            }
+            .scrollbar-thin::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 3px;
+            }
+            .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 顶部导航栏 -->
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fa fa-bar-chart text-primary text-2xl"></i>
+                    <h1 class="text-xl font-bold text-gray-800">Excel数据分析可视化工具</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="help-button" class="px-3 py-1 text-sm rounded-md bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300">
+                        <i class="fa fa-question-circle mr-1"></i>
+                        <span>帮助</span>
+                    </button>
+                    <button id="reset-app" class="px-3 py-1 text-sm rounded-md bg-danger text-white hover:bg-red-600 transition-all-300">
+                        <i class="fa fa-refresh mr-1"></i>
+                        <span>重置</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- 主要内容区域 -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- 上传部分 -->
+        <div id="upload-section" class="max-w-4xl mx-auto">
+            <div class="bg-white rounded-lg shadow-card p-8 text-center">
+                <div class="mb-6">
+                    <i class="fa fa-cloud-upload text-5xl text-primary mb-4"></i>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">上传Excel文件</h2>
+                    <p class="text-gray-600">支持 .xlsx 和 .xls 格式，最大 20MB</p>
+                </div>
+                
+                <div class="mb-6">
+                    <label for="file-input" class="inline-block px-6 py-3 text-lg font-medium text-white bg-primary rounded-lg cursor-pointer hover:bg-blue-700 transition-all-300">
+                        <i class="fa fa-upload mr-2"></i>
+                        选择文件
+                    </label>
+                    <input id="file-input" type="file" accept=".xlsx,.xls" class="hidden">
+                    <p id="selected-file" class="mt-2 text-sm text-gray-500">未选择文件</p>
+                </div>
+                
+                <div class="text-sm text-gray-500">
+                    <p>或者</p>
+                    <button id="download-sample" class="text-primary hover:text-blue-700 underline">
+                        <i class="fa fa-download mr-1"></i>
+                        下载示例数据
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 分析部分 -->
+        <div id="analysis-section" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- 左侧控制面板 -->
+                <div class="lg:col-span-1">
+                    <!-- 文件信息 -->
+                    <div class="bg-white rounded-lg shadow-card p-4 mb-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fa fa-file-text-o text-primary mr-2"></i>
+                            文件信息
+                        </h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">文件名:</span>
+                                <span id="file-name" class="font-medium truncate max-w-[200px]">--</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">行数:</span>
+                                <span id="row-count" class="font-medium">--</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">列数:</span>
+                                <span id="column-count" class="font-medium">--</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">上传时间:</span>
+                                <span id="upload-time" class="font-medium">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 数据配置 -->
+                    <div class="bg-white rounded-lg shadow-card p-4 mb-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fa fa-cog text-primary mr-2"></i>
+                            数据配置
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">标题行数量</label>
+                                <select id="title-rows" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="1">1行</option>
+                                    <option value="2">2行</option>
+                                    <option value="3">3行</option>
+                                    <option value="4">4行</option>
+                                    <option value="5">5行</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">名称列数量</label>
+                                <select id="name-columns" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="1">1列</option>
+                                    <option value="2">2列</option>
+                                    <option value="3">3列</option>
+                                    <option value="4">4列</option>
+                                    <option value="5">5列</option>
+                                </select>
+                            </div>
+                            <button id="apply-configuration" class="w-full px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-700 transition-all-300">
+                                应用配置
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 分析设置 -->
+                    <div class="bg-white rounded-lg shadow-card p-4 mb-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fa fa-sliders text-primary mr-2"></i>
+                            分析设置
+                        </h3>
+                        <div class="space-y-4">
+                            <!-- 分析模式 -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">分析模式</label>
+                                <div class="flex space-x-2">
+                                    <button id="mode-row" class="flex-1 px-3 py-2 text-sm rounded-md bg-primary text-white hover:bg-blue-700 transition-all-300">
+                                        按行分析
+                                    </button>
+                                    <button id="mode-column" class="flex-1 px-3 py-2 text-sm rounded-md bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300">
+                                        按列分析
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 图表类型 -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">图表类型</label>
+                                <select id="chart-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="line">折线图</option>
+                                    <option value="bar">柱形图</option>
+                                    <option value="pie">饼图</option>
+                                    <option value="horizontalBar">条形图</option>
+                                    <option value="area">面积图</option>
+                                    <option value="scatter">散点图</option>
+                                </select>
+                            </div>
+                            
+                            <!-- 数据范围选择 -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">数据范围选择</label>
+                                <div id="row-range-controls" class="hidden space-y-3">
+                                    <div>
+                                        <label for="row-start-col" class="block text-sm text-gray-600 mb-1">起始列</label>
+                                        <input type="number" id="row-start-col" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" min="1" value="1">
+                                    </div>
+                                    <div>
+                                        <label for="row-end-col" class="block text-sm text-gray-600 mb-1">结束列</label>
+                                        <input type="number" id="row-end-col" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" min="1" value="10">
+                                    </div>
+                                </div>
+                                <div id="column-range-controls" class="hidden space-y-3">
+                                    <div>
+                                        <label for="column-start-row" class="block text-sm text-gray-600 mb-1">起始行</label>
+                                        <input type="number" id="column-start-row" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" min="1" value="1">
+                                    </div>
+                                    <div>
+                                        <label for="column-end-row" class="block text-sm text-gray-600 mb-1">结束行</label>
+                                        <input type="number" id="column-end-row" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" min="1" value="20">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 系列选择 -->
+                    <div class="bg-white rounded-lg shadow-card p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold flex items-center">
+                                <i class="fa fa-list text-primary mr-2"></i>
+                                数据系列
+                            </h3>
+                            <div class="flex space-x-2">
+                                <button id="select-all" class="px-2 py-1 text-xs rounded bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300">
+                                    全选
+                                </button>
+                                <button id="deselect-all" class="px-2 py-1 text-xs rounded bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300">
+                                    取消
+                                </button>
+                            </div>
+                        </div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto scrollbar-thin" id="series-select-container">
+                            <!-- 动态生成的系列选择项 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧数据预览和图表区域 -->
+                <div class="lg:col-span-3">
+                    <!-- 数据预览 -->
+                    <div class="bg-white rounded-lg shadow-card p-4 mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold">数据预览</h2>
+                            <div class="text-sm text-gray-500">
+                                显示前 <span id="preview-rows">10</span> 行
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto overflow-y-auto scrollbar-thin" style="max-height: 300px;">
+                            <table class="min-w-full divide-y divide-gray-200 data-table">
+                                <thead class="bg-gray-50" id="data-table-header">
+                                    <!-- 动态生成的表头 -->
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="data-table-body">
+                                    <!-- 动态生成的表格内容 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 图表区域 -->
+                    <div class="bg-white rounded-lg shadow-card p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold">数据分析图表</h2>
+                            <div class="flex space-x-2">
+                                <button id="export-chart" class="px-3 py-1 text-sm rounded-md bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300">
+                                    <i class="fa fa-download mr-1"></i>
+                                    <span>导出图表</span>
+                                </button>
+                                <button id="refresh-chart" class="px-3 py-1 text-sm rounded-md bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300">
+                                    <i class="fa fa-refresh mr-1"></i>
+                                    <span>刷新</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container hidden">
+                            <div class="mb-4">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-semibold text-gray-800" id="charts-overview-title">数据分析图表</h3>
+                                    <div class="text-sm text-gray-500" id="charts-count-info">
+                                        共 <span id="total-charts">0</span> 个图表
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="charts-grid">
+                                <!-- 动态生成的图表容器将在这里显示 -->
+                            </div>
+                        </div>
+                        
+                        <div id="chart-placeholder" class="flex flex-col items-center justify-center h-80 text-gray-400">
+                            <i class="fa fa-bar-chart text-5xl mb-4"></i>
+                            <p>请选择数据系列生成图表</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- 底部状态栏 -->
+    <footer class="bg-white border-t border-gray-200 mt-8">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex flex-wrap items-center justify-between">
+                <div class="text-sm text-gray-500">
+                    <span id="app-status">准备就绪</span>
+                </div>
+                
+                <div class="text-sm text-gray-500 mt-2 sm:mt-0">
+                    <span>Excel数据分析可视化工具 v1.0</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- 帮助模态框 -->
+    <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-gray-800">使用帮助</h3>
+                    <button id="close-help" class="text-gray-500 hover:text-gray-700">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">1. 上传文件</h4>
+                        <p class="text-gray-600">点击"选择文件"按钮上传Excel文件，支持.xlsx和.xls格式。</p>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">2. 数据配置</h4>
+                        <p class="text-gray-600">设置标题行数量和名称列数量，点击"应用配置"按钮。</p>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">3. 分析设置</h4>
+                        <p class="text-gray-600">选择分析模式（按行分析或按列分析）和图表类型。</p>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">4. 选择数据系列</h4>
+                        <p class="text-gray-600">勾选要分析的数据系列，每个选中的系列将生成一个独立图表。</p>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">5. 导出图表</h4>
+                        <p class="text-gray-600">点击"导出图表"按钮可以将图表保存为图片。</p>
+                    </div>
+                </div>
+                <div class="mt-6 text-center">
+                    <button id="close-help-btn" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-700 transition-all-300">
+                        我知道了
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 导出模态框 -->
+    <div id="export-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-lg max-w-md w-full">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-gray-800">导出图表</h3>
+                    <button id="close-export" class="text-gray-500 hover:text-gray-700">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">文件格式</label>
+                        <select id="export-format" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="excel">Excel图表</option>
+                            <option value="png">PNG图片</option>
+                            <option value="jpeg">JPEG图片</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">文件名</label>
+                        <input type="text" id="export-filename" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" value="excel-chart">
+                    </div>
+                </div>
+                <div class="mt-6 flex space-x-3">
+                    <button id="cancel-export" class="flex-1 px-4 py-2 bg-secondary text-gray-700 rounded-md hover:bg-gray-300 transition-all-300">
+                        取消
+                    </button>
+                    <button id="confirm-export" class="flex-1 px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-700 transition-all-300">
+                        导出
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 错误模态框 -->
+    <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-lg max-w-md w-full">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <i class="fa fa-exclamation-circle text-danger text-2xl mr-3"></i>
+                    <h3 class="text-xl font-bold text-gray-800">错误</h3>
+                </div>
+                <p id="error-message" class="text-gray-600 mb-6">发生错误</p>
+                <div class="text-center">
+                    <button id="close-error" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-700 transition-all-300">
+                        确定
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 加载中遮罩 -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+            <p class="text-gray-700" id="loading-text">正在处理数据...</p>
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量
+        let excelData = {
+            rawData: [], // 原始数据
+            headers: [], // 标题行
+            rows: [], // 数据行
+            columns: {}, // 按列组织的数据
+            titleRows: 1, // 标题行数量
+            nameColumns: 1 // 名称列数量
+        };
+        let selectedSeries = [];
+        let charts = []; // 存储多个图表实例
+        let currentAnalysisMode = 'row'; // 'row' 或 'column'
+        let currentChartType = 'line';
+        let originalFileName = '';
+        
+        // 颜色配置
+        const chartColors = [
+            'rgba(26, 86, 219, 0.7)',   // 主蓝色
+            'rgba(16, 185, 129, 0.7)',  // 绿色
+            'rgba(245, 158, 11, 0.7)',  // 橙色
+            'rgba(239, 68, 68, 0.7)',   // 红色
+            'rgba(139, 92, 246, 0.7)',  // 紫色
+            'rgba(236, 72, 153, 0.7)',  // 粉色
+            'rgba(20, 184, 166, 0.7)',  // 青色
+            'rgba(251, 191, 36, 0.7)',  // 黄色
+            'rgba(79, 70, 229, 0.7)',   // 靛蓝色
+            'rgba(249, 115, 22, 0.7)'   // 深橙色
+        ];
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Excel数据分析工具初始化...');
+            
+            // 绑定事件监听器
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) {
+                fileInput.addEventListener('change', handleFileUpload);
+                console.log('文件上传事件绑定成功');
+            } else {
+                console.error('文件输入元素不存在');
+            }
+            
+            document.getElementById('reset-app').addEventListener('click', resetApp);
+            document.getElementById('help-button').addEventListener('click', showHelpModal);
+            document.getElementById('close-help').addEventListener('click', hideHelpModal);
+            document.getElementById('close-help-btn').addEventListener('click', hideHelpModal);
+            document.getElementById('download-sample').addEventListener('click', downloadSampleData);
+            document.getElementById('export-chart').addEventListener('click', showExportModal);
+            document.getElementById('close-export').addEventListener('click', hideExportModal);
+            document.getElementById('cancel-export').addEventListener('click', hideExportModal);
+            document.getElementById('confirm-export').addEventListener('click', exportChart);
+            document.getElementById('refresh-chart').addEventListener('click', updateChart);
+            
+            // 分析模式切换
+            document.getElementById('mode-row').addEventListener('click', function() {
+                setAnalysisMode('row');
+            });
+            document.getElementById('mode-column').addEventListener('click', function() {
+                setAnalysisMode('column');
+            });
+            
+            // 绑定数据范围选择事件
+            function bindDataRangeEvents() {
+                const rowStartCol = document.getElementById('row-start-col');
+                const rowEndCol = document.getElementById('row-end-col');
+                const columnStartRow = document.getElementById('column-start-row');
+                const columnEndRow = document.getElementById('column-end-row');
+                
+                const handleRangeChange = function() {
+                    console.log('数据范围变化:', {
+                        rowStartCol: rowStartCol?.value,
+                        rowEndCol: rowEndCol?.value,
+                        columnStartRow: columnStartRow?.value,
+                        columnEndRow: columnEndRow?.value
+                    });
+                    updateChart();
+                };
+                
+                // 移除所有可能的旧事件监听器
+                if (rowStartCol) {
+                    rowStartCol.removeEventListener('change', updateChart);
+                    rowStartCol.removeEventListener('change', handleRangeChange);
+                    rowStartCol.addEventListener('change', handleRangeChange);
+                }
+                if (rowEndCol) {
+                    rowEndCol.removeEventListener('change', updateChart);
+                    rowEndCol.removeEventListener('change', handleRangeChange);
+                    rowEndCol.addEventListener('change', handleRangeChange);
+                }
+                if (columnStartRow) {
+                    columnStartRow.removeEventListener('change', updateChart);
+                    columnStartRow.removeEventListener('change', handleRangeChange);
+                    columnStartRow.addEventListener('change', handleRangeChange);
+                }
+                if (columnEndRow) {
+                    columnEndRow.removeEventListener('change', updateChart);
+                    columnEndRow.removeEventListener('change', handleRangeChange);
+                    columnEndRow.addEventListener('change', handleRangeChange);
+                }
+                
+                console.log('数据范围事件绑定完成');
+            }
+            
+            bindDataRangeEvents();
+            
+            // 图表类型切换
+            document.getElementById('chart-type').addEventListener('change', function() {
+                currentChartType = this.value;
+                updateChart();
+            });
+            
+            // 系列选择控制 - 已在下方定义
+            
+            document.getElementById('select-all').addEventListener('click', selectAllSeries);
+            document.getElementById('deselect-all').addEventListener('click', deselectAllSeries);
+            
+            // 数据配置应用按钮
+            const applyConfigBtn = document.getElementById('apply-configuration');
+            if (applyConfigBtn) {
+                applyConfigBtn.addEventListener('click', function() {
+                    if (excelData.rawData && excelData.rawData.length > 0) {
+                        showLoading('正在应用数据配置...');
+                        try {
+                            applyDataConfiguration();
+                            updateSeriesSelection();
+                            updateChart();
+                            hideLoading();
+                            updateAppStatus('数据配置已更新');
+                        } catch (error) {
+                            hideLoading();
+                            showErrorModal('应用配置失败: ' + error.message);
+                        }
+                    }
+                });
+            }
+            
+            // 错误模态框关闭按钮
+            document.getElementById('close-error').addEventListener('click', hideErrorModal);
+            
+            console.log('应用初始化完成');
+        });
+        
+        // 处理文件上传
+        function handleFileUpload(event) {
+            console.log('文件上传事件触发');
+            const file = event.target.files[0];
+            if (file) {
+                console.log('检测到文件:', file.name);
+                document.getElementById('selected-file').textContent = file.name;
+                validateAndProcessFile(file);
+            } else {
+                console.log('未选择文件');
+                document.getElementById('selected-file').textContent = '未选择文件';
+            }
+        }
+        
+        // 验证并处理文件
+        function validateAndProcessFile(file) {
+            console.log('验证并处理文件...');
+            // 显示详细的文件信息用于调试
+            console.log('文件信息:', {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                lastModified: file.lastModified
+            });
+            
+            // 检查文件扩展名
+            const fileName = file.name.toLowerCase();
+            const validExtensions = ['.xlsx', '.xls'];
+            
+            // 宽松的扩展名检查
+            const hasValidExtension = validExtensions.some(ext => fileName.includes(ext));
+            
+            if (!hasValidExtension) {
+                showErrorModal('不支持的文件格式。请上传Excel文件(.xlsx或.xls)');
+                return;
+            }
+            
+            // 检查文件大小（限制为20MB）
+            const maxSize = 20 * 1024 * 1024; // 20MB
+            if (file.size > maxSize) {
+                showErrorModal('文件过大。最大支持20MB的文件');
+                return;
+            }
+            
+            // 处理文件
+            processExcelFile(file);
+        }
+        
+        // 处理Excel文件
+        function processExcelFile(file) {
+            showLoading('正在解析Excel文件...');
+            originalFileName = file.name;
+            
+            // 更新应用状态
+            updateAppStatus('正在处理文件: ' + file.name);
+            
+            const reader = new FileReader();
+            
+            // 设置超时处理
+            const timeoutId = setTimeout(() => {
+                reader.abort();
+                hideLoading();
+                showErrorModal('文件读取超时。文件可能过大或格式不正确');
+            }, 30000); // 30秒超时
+            
+            reader.onload = function(e) {
+                clearTimeout(timeoutId);
+                
+                try {
+                    updateAppStatus('正在解析Excel数据...');
+                    
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { 
+                        type: 'array',
+                        cellDates: true,
+                        cellNF: false,
+                        cellText: false
+                    });
+                    
+                    // 检查是否有工作表
+                    if (workbook.SheetNames.length === 0) {
+                        hideLoading();
+                        showErrorModal('Excel文件不包含任何工作表');
+                        return;
+                    }
+                    
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    
+                    updateAppStatus('正在转换数据格式...');
+                    
+                    // 转换为二维数组
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    // 验证数据格式
+                    if (!rawData || rawData.length === 0) {
+                        hideLoading();
+                        showErrorModal('无法从Excel文件中提取数据');
+                        return;
+                    }
+                    
+                    if (rawData.length < 2 || rawData[0].length < 2) {
+                        hideLoading();
+                        showErrorModal('Excel文件数据格式不正确，至少需要2行2列数据');
+                        return;
+                    }
+                    
+                    // 检查是否有有效数据
+                    let hasValidData = false;
+                    for (let i = 1; i < rawData.length; i++) {
+                        for (let j = 1; j < rawData[i].length; j++) {
+                            const cell = rawData[i][j];
+                            if (cell !== undefined && cell !== null && cell !== '' && !isNaN(parseFloat(cell))) {
+                                hasValidData = true;
+                                break;
+                            }
+                        }
+                        if (hasValidData) break;
+                    }
+                    
+                    if (!hasValidData) {
+                        hideLoading();
+                        showErrorModal('Excel文件中未找到有效的数值数据');
+                        return;
+                    }
+                    
+                    updateAppStatus('正在处理数据...');
+                    
+                    // 解析数据
+                    parseExcelData(rawData);
+                    
+                    // 更新文件信息
+                    updateFileInfo(file);
+                    
+                    // 显示分析部分
+                    document.getElementById('upload-section').classList.add('hidden');
+                    document.getElementById('analysis-section').classList.remove('hidden');
+                    
+                    // 生成系列选择
+                    updateSeriesSelection();
+                    
+                    // 生成图表
+                    updateChart();
+                    
+                    hideLoading();
+                    updateAppStatus('文件解析成功');
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    hideLoading();
+                    console.error('Excel解析错误:', error);
+                    
+                    // 提供更详细的错误信息
+                    let errorMessage = 'Excel文件解析失败';
+                    
+                    if (error.message.includes('Corrupt zip')) {
+                        errorMessage += ': 文件格式损坏或不是有效的Excel文件';
+                    } else if (error.message.includes('Unsupported format')) {
+                        errorMessage += ': 不支持的Excel格式';
+                    } else if (error.message.includes('Out of memory')) {
+                        errorMessage += ': 内存不足，文件可能过大';
+                    } else {
+                        errorMessage += ': ' + error.message;
+                    }
+                    
+                    showErrorModal(errorMessage);
+                }
+            };
+            
+            reader.onerror = function(e) {
+                clearTimeout(timeoutId);
+                hideLoading();
+                
+                let errorMessage = '文件读取失败';
+                
+                switch (e.target.error.code) {
+                    case e.target.error.NOT_FOUND_ERR:
+                        errorMessage += ': 文件未找到';
+                        break;
+                    case e.target.error.NOT_READABLE_ERR:
+                        errorMessage += ': 文件不可读';
+                        break;
+                    case e.target.error.ABORT_ERR:
+                        errorMessage += ': 操作被中止';
+                        break;
+                    default:
+                        errorMessage += ': ' + e.target.error.message;
+                }
+                
+                showErrorModal(errorMessage);
+            };
+            
+            reader.onabort = function() {
+                clearTimeout(timeoutId);
+                hideLoading();
+                showErrorModal('文件读取被中止');
+            };
+            
+            try {
+                reader.readAsArrayBuffer(file);
+            } catch (error) {
+                clearTimeout(timeoutId);
+                hideLoading();
+                showErrorModal('文件读取失败: ' + error.message);
+            }
+        }
+        
+        // 解析Excel数据
+        function parseExcelData(rawData) {
+            console.log('开始解析Excel数据...');
+            // 保存原始数据
+            excelData.rawData = rawData;
+            
+            console.log('原始数据:', rawData);
+            
+            // 应用自定义的标题行和名称列设置
+            applyDataConfiguration();
+            
+            // 更新数据表格
+            updateDataTable();
+            
+            console.log('Excel数据解析完成');
+        }
+        
+        // 应用数据配置
+        function applyDataConfiguration() {
+            console.log('应用数据配置...');
+            // 安全获取配置值
+            let titleRows = parseInt(document.getElementById('title-rows')?.value) || 1;
+            let nameColumns = parseInt(document.getElementById('name-columns')?.value) || 1;
+            
+            // 验证配置值
+            titleRows = Math.max(1, Math.min(5, titleRows));
+            nameColumns = Math.max(1, Math.min(5, nameColumns));
+            
+            excelData.titleRows = titleRows;
+            excelData.nameColumns = nameColumns;
+            
+            // 提取标题行
+            excelData.headers = [];
+            if (excelData.rawData.length > 0) {
+                const headerRow = excelData.rawData[titleRows - 1] || [];
+                excelData.headers = headerRow.map((header, index) => {
+                    return header || `列 ${index + 1}`;
+                });
+            }
+            
+            // 提取数据行
+            excelData.rows = [];
+            for (let i = titleRows; i < excelData.rawData.length; i++) {
+                const row = excelData.rawData[i] || [];
+                excelData.rows.push(row);
+            }
+            
+            // 按列组织数据
+            excelData.columns = {};
+            excelData.headers.forEach((header, colIndex) => {
+                excelData.columns[header] = [];
+                excelData.rows.forEach(row => {
+                    excelData.columns[header].push(row[colIndex] || '');
+                });
+            });
+            
+            console.log('数据配置应用完成:', {
+                headers: excelData.headers,
+                rows: excelData.rows.length,
+                columns: Object.keys(excelData.columns).length
+            });
+        }
+        
+        // 更新文件信息
+        function updateFileInfo(file) {
+            document.getElementById('file-name').textContent = file.name;
+            
+            // 使用原始数据的长度来显示正确的总行数（包含标题行）
+            const totalRows = excelData.rawData ? excelData.rawData.length : 0;
+            document.getElementById('row-count').textContent = totalRows;
+            
+            document.getElementById('column-count').textContent = excelData.headers.length;
+            document.getElementById('upload-time').textContent = new Date().toLocaleString();
+            
+            console.log('文件信息更新:', {
+                fileName: file.name,
+                totalRows: totalRows,
+                totalColumns: excelData.headers.length,
+                dataRows: excelData.rows.length,
+                titleRows: excelData.titleRows
+            });
+        }
+        
+        // 更新数据表格
+        function updateDataTable() {
+            const tableHeader = document.getElementById('data-table-header');
+            const tableBody = document.getElementById('data-table-body');
+            
+            // 清空表格
+            tableHeader.innerHTML = '';
+            tableBody.innerHTML = '';
+            
+            // 生成表头
+            const headerRow = document.createElement('tr');
+            excelData.headers.forEach(header => {
+                const th = document.createElement('th');
+                th.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            tableHeader.appendChild(headerRow);
+            
+            // 生成表格内容（最多显示10行）
+            const maxRows = Math.min(10, excelData.rows.length);
+            document.getElementById('preview-rows').textContent = maxRows;
+            
+            for (let i = 0; i < maxRows; i++) {
+                const row = document.createElement('tr');
+                
+                excelData.rows[i].forEach((cell, index) => {
+                    const td = document.createElement('td');
+                    td.className = 'px-4 py-2 whitespace-nowrap text-sm text-gray-900';
+                    
+                    // 格式化显示
+                    if (cell instanceof Date) {
+                        td.textContent = cell.toLocaleDateString();
+                    } else if (typeof cell === 'number') {
+                        td.textContent = cell.toLocaleString();
+                    } else {
+                        td.textContent = cell || '';
+                    }
+                    
+                    row.appendChild(td);
+                });
+                
+                tableBody.appendChild(row);
+            }
+        }
+        
+        // 设置分析模式
+        function setAnalysisMode(mode) {
+            currentAnalysisMode = mode;
+            
+            // 更新按钮样式
+            if (mode === 'row') {
+                document.getElementById('mode-row').className = 'flex-1 px-3 py-2 text-sm rounded-md bg-primary text-white hover:bg-blue-700 transition-all-300';
+                document.getElementById('mode-column').className = 'flex-1 px-3 py-2 text-sm rounded-md bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300';
+            } else {
+                document.getElementById('mode-row').className = 'flex-1 px-3 py-2 text-sm rounded-md bg-secondary text-gray-700 hover:bg-gray-300 transition-all-300';
+                document.getElementById('mode-column').className = 'flex-1 px-3 py-2 text-sm rounded-md bg-primary text-white hover:bg-blue-700 transition-all-300';
+            }
+            
+            // 显示对应的范围控制
+            const rowControls = document.getElementById('row-range-controls');
+            const columnControls = document.getElementById('column-range-controls');
+            
+            if (rowControls && columnControls) {
+                if (mode === 'row') {
+                    rowControls.classList.remove('hidden');
+                    columnControls.classList.add('hidden');
+                } else {
+                    rowControls.classList.add('hidden');
+                    columnControls.classList.remove('hidden');
+                }
+            }
+            
+            // 更新系列选择
+            updateSeriesSelection();
+            
+            // 更新图表
+            updateChart();
+        }
+        
+        // 更新系列选择
+        function updateSeriesSelection() {
+            console.log('更新系列选择...');
+            const container = document.getElementById('series-select-container');
+            if (!container) {
+                console.error('系列选择容器不存在');
+                return;
+            }
+            
+            container.innerHTML = '';
+            selectedSeries = [];
+            
+            if (currentAnalysisMode === 'row') {
+                // 按行分析，显示行名称（使用第一列的值）
+                console.log('按行分析模式，生成行选择项');
+                excelData.rows.forEach((row, index) => {
+                    const name = row[0] || `行 ${index + 1}`;
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center mb-2';
+                    div.innerHTML = `
+                        <input type="checkbox" id="series-${index}" class="series-checkbox text-primary focus:ring-primary" value="${index}" checked>
+                        <label for="series-${index}" class="ml-2 text-sm text-gray-700 truncate cursor-pointer">${name}</label>
+                    `;
+                    container.appendChild(div);
+                    selectedSeries.push(index);
+                    
+                    // 添加事件监听器
+                    div.querySelector(`#series-${index}`).addEventListener('change', function() {
+                        if (this.checked) {
+                            if (!selectedSeries.includes(index)) {
+                                selectedSeries.push(index);
+                            }
+                        } else {
+                            selectedSeries = selectedSeries.filter(i => i !== index);
+                        }
+                        console.log('系列选择变化:', selectedSeries);
+                        updateChart();
+                    });
+                });
+            } else {
+                // 按列分析，显示列名称（从第二列开始）
+                console.log('按列分析模式，生成列选择项');
+                excelData.headers.slice(1).forEach((header, index) => {
+                    const columnIndex = index + 1;
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center mb-2';
+                    div.innerHTML = `
+                        <input type="checkbox" id="series-${columnIndex}" class="series-checkbox text-primary focus:ring-primary" value="${columnIndex}" checked>
+                        <label for="series-${columnIndex}" class="ml-2 text-sm text-gray-700 truncate cursor-pointer">${header}</label>
+                    `;
+                    container.appendChild(div);
+                    selectedSeries.push(columnIndex);
+                    
+                    // 添加事件监听器
+                    div.querySelector(`#series-${columnIndex}`).addEventListener('change', function() {
+                        if (this.checked) {
+                            if (!selectedSeries.includes(columnIndex)) {
+                                selectedSeries.push(columnIndex);
+                            }
+                        } else {
+                            selectedSeries = selectedSeries.filter(i => i !== columnIndex);
+                        }
+                        console.log('系列选择变化:', selectedSeries);
+                        updateChart();
+                    });
+                });
+            }
+            
+            console.log('系列选择更新完成，默认选中的系列:', selectedSeries);
+        }
+        
+        // 全选系列
+        function selectAllSeries() {
+            document.querySelectorAll('.series-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            
+            if (currentAnalysisMode === 'row') {
+                selectedSeries = Array.from({ length: excelData.rows.length }, (_, i) => i);
+            } else {
+                selectedSeries = Array.from({ length: excelData.headers.length - 1 }, (_, i) => i + 1);
+            }
+            
+            console.log('全选系列:', selectedSeries);
+            updateChart();
+        }
+        
+        // 取消全选系列
+        function deselectAllSeries() {
+            document.querySelectorAll('.series-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            selectedSeries = [];
+            console.log('取消全选系列');
+            updateChart();
+        }
+        
+        // 更新图表
+        function updateChart() {
+            console.log('开始更新图表...');
+            const chartPlaceholder = document.getElementById('chart-placeholder');
+            const chartContainer = document.querySelector('.chart-container');
+            
+            // 如果没有选择系列，显示占位符
+            if (selectedSeries.length === 0) {
+                console.log('没有选择数据系列');
+                chartPlaceholder.classList.remove('hidden');
+                chartContainer.classList.add('hidden');
+                return;
+            }
+            
+            console.log('选中的系列:', selectedSeries);
+            
+            // 隐藏占位符，显示图表
+            chartPlaceholder.classList.add('hidden');
+            chartContainer.classList.remove('hidden');
+            
+            // 更新图表概览标题
+            updateChartsOverviewTitle();
+            
+            try {
+                // 销毁所有现有图表
+                destroyAllCharts();
+                
+                // 为每个选中的系列创建独立图表
+                console.log('为每个选中的系列创建独立图表...');
+                const chartsGrid = document.getElementById('charts-grid');
+                chartsGrid.innerHTML = ''; // 清空现有图表容器
+                
+                let chartCount = 0;
+                
+                // 根据分析模式为每个选中的系列创建图表
+                selectedSeries.forEach((seriesIndex, index) => {
+                    console.log('处理系列索引:', seriesIndex);
+                    
+                    // 准备单个系列的图表数据
+                    const singleSeriesData = prepareSingleSeriesData(seriesIndex);
+                    if (!singleSeriesData) {
+                        console.warn('跳过无效系列:', seriesIndex);
+                        return;
+                    }
+                    
+                    console.log('单个系列数据:', singleSeriesData);
+                    
+                    // 创建图表容器
+                    const chartContainer = createChartContainer(index);
+                    chartsGrid.appendChild(chartContainer);
+                    
+                    // 获取canvas元素
+                    const canvasId = `chart-${index}`;
+                    const canvas = document.getElementById(canvasId);
+                    if (!canvas) {
+                        console.error('Canvas元素不存在:', canvasId);
+                        return;
+                    }
+                    
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        console.error('无法获取canvas上下文');
+                        return;
+                    }
+                    
+                    // 创建图表配置
+                    const chartConfig = getChartConfig(currentChartType, singleSeriesData);
+                    console.log('图表配置:', chartConfig);
+                    
+                    // 创建图表
+                    const chart = new Chart(ctx, chartConfig);
+                    charts.push(chart);
+                    chartCount++;
+                    
+                    // 更新图表标题
+                    let dataLabel = '';
+                    if (currentAnalysisMode === 'row') {
+                        const row = excelData.rows[seriesIndex];
+                        dataLabel = row ? (row[0] || `行 ${seriesIndex + 1}`) : `行 ${seriesIndex + 1}`;
+                    } else {
+                        dataLabel = excelData.headers[seriesIndex] || `列 ${seriesIndex + 1}`;
+                    }
+                    updateSingleChartTitle(index, dataLabel);
+                    
+                    console.log(`图表 ${index + 1} 创建成功: ${dataLabel}`);
+                });
+                
+                // 更新图表计数信息
+                document.getElementById('total-charts').textContent = chartCount;
+                console.log(`共创建 ${chartCount} 个图表`);
+                
+            } catch (error) {
+                console.error('图表更新失败:', error);
+                showErrorModal('图表生成失败: ' + error.message);
+                chartPlaceholder.classList.remove('hidden');
+                chartContainer.classList.add('hidden');
+            }
+        }
+        
+        // 销毁所有图表
+        function destroyAllCharts() {
+            charts.forEach((chart, index) => {
+                if (chart) {
+                    console.log(`销毁图表 ${index}`);
+                    chart.destroy();
+                }
+            });
+            charts = [];
+        }
+        
+        // 准备单个系列的图表数据
+        function prepareSingleSeriesData(seriesIndex) {
+            try {
+                const labels = [];
+                const datasets = [];
+                
+                if (currentAnalysisMode === 'row') {
+                    // 按行分析 - 为指定行创建图表
+                    const row = excelData.rows[seriesIndex];
+                    if (!row) {
+                        console.warn('行数据不存在:', seriesIndex);
+                        return null;
+                    }
+                    
+                    const rowLabel = row[0] || `行 ${seriesIndex + 1}`;
+                    console.log('处理行:', rowLabel);
+                    
+                    // 获取用户选择的列范围
+                    const startCol = parseInt(document.getElementById('row-start-col')?.value) || 1;
+                    const endCol = parseInt(document.getElementById('row-end-col')?.value) || 10;
+                    
+                    console.log('行分析 - 用户选择的列范围:', startCol, '到', endCol);
+                    
+                    // 调整索引（转换为0基索引）
+                    const startIndex = Math.max(0, startCol - 1);
+                    const endIndex = Math.min(row.length - 1, endCol - 1);
+                    
+                    if (startIndex > endIndex) {
+                        throw new Error('起始列不能大于结束列');
+                    }
+                    
+                    // 获取指定范围内的数据
+                    const rowData = [];
+                    const selectedHeaders = [];
+                    
+                    for (let i = startIndex; i <= endIndex; i++) {
+                        if (i < row.length) {
+                            const cellValue = row[i];
+                            const num = parseFloat(cellValue);
+                            rowData.push(isNaN(num) ? 0 : num);
+                            
+                            // 获取对应的列标题
+                            if (i < excelData.headers.length) {
+                                selectedHeaders.push(excelData.headers[i]);
+                            } else {
+                                selectedHeaders.push(`列 ${i + 1}`);
+                            }
+                        }
+                    }
+                    
+                    labels.push(...selectedHeaders);
+                    console.log('行分析 - 使用列标题作为标签:', selectedHeaders);
+                    console.log('行分析 - 提取的数据:', rowData);
+                    
+                    datasets.push({
+                        label: rowLabel,
+                        data: rowData,
+                        borderColor: generateColor(0),
+                        backgroundColor: generateColor(0, 0.2),
+                        borderWidth: 2,
+                        fill: currentChartType === 'area'
+                    });
+                    
+                } else {
+                    // 按列分析 - 完全重写逻辑确保正确生成图表
+                    console.log('=== 开始按列分析 ===');
+                    
+                    // 获取列信息
+                    const columnHeader = excelData.headers[seriesIndex];
+                    if (!columnHeader) {
+                        console.error('列标题不存在:', seriesIndex);
+                        return null;
+                    }
+                    
+                    const column = excelData.columns[columnHeader];
+                    if (!column) {
+                        console.error('列数据不存在:', columnHeader);
+                        return null;
+                    }
+                    
+                    console.log('处理列:', columnHeader, '数据长度:', column.length);
+                    
+                    // 直接使用固定的行范围进行测试
+                    const startRow = 1;
+                    const endRow = Math.min(10, column.length);
+                    console.log('使用固定行范围:', startRow, '到', endRow);
+                    
+                    // 计算索引
+                    const startIndex = Math.max(0, startRow - 1);
+                    const endIndex = Math.min(column.length - 1, endRow - 1);
+                    
+                    if (startIndex > endIndex) {
+                        console.error('无效的行范围');
+                        return null;
+                    }
+                    
+                    console.log('索引范围:', startIndex, '到', endIndex);
+                    
+                    // 提取数据
+                    const data = [];
+                    for (let i = startIndex; i <= endIndex; i++) {
+                        if (i < column.length) {
+                            const cellValue = column[i];
+                            const num = parseFloat(cellValue);
+                            const value = isNaN(num) ? 0 : num;
+                            data.push(value);
+                            console.log(`  行 ${i + 1}: ${cellValue} -> ${value}`);
+                        }
+                    }
+                    
+                    console.log('提取的数据数组:', data);
+                    
+                    // 生成标签 - 优先使用第一列的名称
+                    const columnLabels = [];
+                    const nameColumnHeader = excelData.headers[0];
+                    const nameColumnData = excelData.columns[nameColumnHeader];
+                    
+                    console.log('尝试使用第一列作为标签来源:', nameColumnHeader);
+                    
+                    for (let i = 0; i < data.length; i++) {
+                        const originalIndex = startIndex + i;
+                        let label = `行 ${originalIndex + 1}`;
+                        
+                        // 尝试从第一列获取名称
+                        if (nameColumnData && originalIndex < nameColumnData.length) {
+                            const nameValue = nameColumnData[originalIndex];
+                            if (nameValue && nameValue.toString().trim() !== '') {
+                                label = nameValue.toString().trim();
+                                console.log(`  使用第一列名称: "${label}"`);
+                            } else {
+                                console.log(`  第一列值为空，使用默认标签: "${label}"`);
+                            }
+                        } else {
+                            console.log(`  超出第一列范围，使用默认标签: "${label}"`);
+                        }
+                        
+                        columnLabels.push(label);
+                    }
+                    
+                    console.log('生成的标签数组:', columnLabels);
+                    
+                    // 确保有数据
+                    if (data.length === 0) {
+                        console.error('没有提取到有效数据');
+                        return null;
+                    }
+                    
+                    // 创建数据集
+                    const columnDatasets = [{
+                        label: columnHeader,
+                        data: data,
+                        borderColor: '#3b82f6', // 固定蓝色
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderWidth: 2,
+                        fill: currentChartType === 'area'
+                    }];
+                    
+                    // 创建返回数据
+                    const chartData = {
+                        labels: columnLabels,
+                        datasets: columnDatasets
+                    };
+                    
+                    console.log('=== 按列分析完成，返回数据:', chartData);
+                    return chartData;
+                }
+                
+                // 验证数据
+                if (labels.length === 0) {
+                    throw new Error('无法生成图表标签');
+                }
+                
+                if (datasets.length === 0) {
+                    throw new Error('无法生成图表数据系列');
+                }
+                
+                // 验证标签和数据长度是否匹配
+                if (labels.length !== datasets[0].data.length) {
+                    console.warn('标签数量与数据数量不匹配:', labels.length, datasets[0].data.length);
+                    // 调整标签长度以匹配数据长度
+                    const adjustedLabels = [];
+                    const nameColumnHeader = excelData.headers[0];
+                    const nameColumnData = excelData.columns[nameColumnHeader];
+                    
+                    for (let i = 0; i < datasets[0].data.length; i++) {
+                        // 优先尝试从第一列获取名称
+                        if (nameColumnData && i < nameColumnData.length) {
+                            const nameValue = nameColumnData[i];
+                            if (nameValue && nameValue.toString().trim() !== '') {
+                                adjustedLabels.push(nameValue.toString().trim());
+                                console.log(`  调整: 数据点 ${i} 使用第一列名称 "${nameValue.toString().trim()}"`);
+                                continue;
+                            }
+                        }
+                        
+                        // 如果第一列没有有效名称，再使用原标签或默认值
+                        if (i < labels.length && labels[i] && labels[i] !== '项目 1' && labels[i] !== '项目 2') {
+                            adjustedLabels.push(labels[i]);
+                        } else {
+                            adjustedLabels.push(`项目 ${i + 1}`);
+                        }
+                    }
+                    labels = adjustedLabels;
+                    console.log('调整后的标签:', labels);
+                }
+
+                // 对于饼图，确保每个数据点都有对应的名称标签
+                if (currentChartType === 'pie') {
+                    console.log('饼图模式 - 确保每个数据点都有名称标签');
+                    // 饼图的数据结构需要特殊处理，确保标签和数据一一对应
+                    const pieData = {
+                        labels: labels,
+                        datasets: [{
+                            label: datasets[0].label,
+                            data: datasets[0].data,
+                            backgroundColor: [],
+                            borderColor: [],
+                            borderWidth: 1
+                        }]
+                    };
+                    
+                    // 为每个数据点生成不同的颜色
+                    datasets[0].data.forEach((_, index) => {
+                        pieData.datasets[0].backgroundColor.push(generateColor(index, 0.7));
+                        pieData.datasets[0].borderColor.push(generateColor(index, 1));
+                    });
+                    
+                    console.log('饼图数据准备完成:', pieData);
+                    return pieData;
+                }
+                
+                console.log('图表数据准备完成:', { labels, datasets });
+                return {
+                    labels: labels,
+                    datasets: datasets
+                };
+            } catch (error) {
+                console.error('准备单个系列数据时出错:', error);
+                return null;
+            }
+        }
+        
+        // 创建图表容器
+        function createChartContainer(index) {
+            const container = document.createElement('div');
+            container.className = 'bg-white p-4 rounded-lg shadow-sm';
+            container.innerHTML = `
+                <h4 id="chart-${index}-title" class="text-md font-medium mb-2 text-center">图表 ${index + 1}</h4>
+                <div style="height: 300px;">
+                    <canvas id="chart-${index}"></canvas>
+                </div>
+            `;
+            return container;
+        }
+        
+        // 更新图表概览标题
+        function updateChartsOverviewTitle() {
+            const titleElement = document.getElementById('charts-overview-title');
+            const analysisTitle = currentAnalysisMode === 'row' ? '按行分析' : '按列分析';
+            const chartTypeNames = {
+                'line': '折线图',
+                'bar': '柱形图',
+                'pie': '饼图',
+                'horizontalBar': '条形图',
+                'area': '面积图',
+                'scatter': '散点图'
+            };
+            const chartTypeName = chartTypeNames[currentChartType] || '图表';
+            
+            const fullTitle = `${analysisTitle} - ${chartTypeName}`;
+            if (titleElement) {
+                titleElement.textContent = fullTitle;
+            }
+            
+            console.log('图表概览标题更新为:', fullTitle);
+        }
+        
+        // 更新单个图表标题
+        function updateSingleChartTitle(chartIndex, dataLabel) {
+            const titleElement = document.getElementById(`chart-${chartIndex}-title`);
+            if (titleElement) {
+                const chartTypeNames = {
+                    'line': '折线图',
+                    'bar': '柱形图',
+                    'pie': '饼图',
+                    'horizontalBar': '条形图',
+                    'area': '面积图',
+                    'scatter': '散点图'
+                };
+                const chartTypeName = chartTypeNames[currentChartType] || '图表';
+                titleElement.textContent = `${dataLabel} - ${chartTypeName}`;
+            }
+        }
+        
+        // 获取图表配置
+        function getChartConfig(chartType, chartData) {
+            const baseOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: false
+                    }
+                }
+            };
+            
+            // 根据分析模式设置轴标题
+            const xAxisTitle = currentAnalysisMode === 'row' ? '列标题' : '名称列';
+            const yAxisTitle = '数值';
+            
+            console.log('图表配置 - 分析模式:', currentAnalysisMode, 'X轴标题:', xAxisTitle, 'Y轴标题:', yAxisTitle);
+            
+            const configs = {
+                'line': {
+                    type: 'line',
+                    data: chartData,
+                    options: {
+                        ...baseOptions,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: yAxisTitle
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: xAxisTitle
+                                }
+                            }
+                        }
+                    }
+                },
+                'bar': {
+                    type: 'bar',
+                    data: chartData,
+                    options: {
+                        ...baseOptions,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: yAxisTitle
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: xAxisTitle
+                                }
+                            }
+                        }
+                    }
+                },
+                'pie': {
+                    type: 'pie',
+                    data: chartData,
+                    options: {
+                        ...baseOptions,
+                        plugins: {
+                            ...baseOptions.plugins,
+                            legend: {
+                                display: true,
+                                position: 'right'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(context) {
+                                        return context[0].label;
+                                    },
+                                    label: function(context) {
+                                        const label = context.dataset.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return `${label}: ${value} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                'horizontalBar': {
+                    type: 'bar',
+                    data: chartData,
+                    options: {
+                        ...baseOptions,
+                        indexAxis: 'y', // 水平条形图
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: yAxisTitle
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: xAxisTitle
+                                }
+                            }
+                        }
+                    }
+                },
+                'area': {
+                    type: 'line',
+                    data: chartData,
+                    options: {
+                        ...baseOptions,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: yAxisTitle
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: xAxisTitle
+                                }
+                            }
+                        },
+                        elements: {
+                            line: {
+                                tension: 0.4
+                            },
+                            point: {
+                                radius: 2
+                            }
+                        }
+                    }
+                },
+                'scatter': {
+                    type: 'scatter',
+                    data: transformForScatter(chartData),
+                    options: {
+                        ...baseOptions,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: '数值'
+                                }
+                            },
+                            x: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: xAxisTitle
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            
+            const config = configs[chartType] || configs['line'];
+            console.log('使用图表配置:', chartType, config);
+            return config;
+        }
+        
+        // 转换数据为散点图格式
+        function transformForScatter(chartData) {
+            console.log('转换数据为散点图格式，分析模式:', currentAnalysisMode);
+            const scatterData = {
+                datasets: []
+            };
+            
+            chartData.datasets.forEach((dataset, index) => {
+                const scatterPoints = [];
+                
+                // 为散点图创建点数据
+                dataset.data.forEach((value, i) => {
+                    scatterPoints.push({
+                        x: i,
+                        y: parseFloat(value) || 0
+                    });
+                });
+                
+                scatterData.datasets.push({
+                    label: dataset.label,
+                    data: scatterPoints,
+                    backgroundColor: dataset.backgroundColor || `hsl(${index * 60}, 70%, 50%)`,
+                    borderColor: dataset.borderColor || `hsl(${index * 60}, 70%, 50%)`,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                });
+            });
+            
+            console.log('散点图数据转换完成:', scatterData);
+            return scatterData;
+        }
+        
+        // 生成颜色
+        function generateColor(index, alpha = 1) {
+            const color = chartColors[index % chartColors.length];
+            if (alpha === 1) {
+                return color;
+            }
+            return color.replace('0.7', alpha.toString());
+        }
+        
+        // 导出图表
+        function exportChart() {
+            const format = document.getElementById('export-format').value;
+            const filename = document.getElementById('export-filename').value || 'excel-chart';
+            
+            if (charts.length === 0) {
+                showErrorModal('没有可导出的图表');
+                return;
+            }
+            
+            showLoading('正在导出图表...');
+            
+            try {
+                if (format === 'excel') {
+                    exportToExcel(filename);
+                } else {
+                    exportToImage(filename, format);
+                }
+            } catch (error) {
+                hideLoading();
+                showErrorModal('图表导出失败: ' + error.message);
+            }
+        }
+        
+        // 导出为Excel图表
+        function exportToExcel(filename) {
+            try {
+                // 获取第一个图表的数据
+                const chart = charts[0];
+                if (!chart) {
+                    throw new Error('未找到图表实例');
+                }
+                
+                console.log('准备导出Excel图表:', {
+                    labels: chart.data.labels,
+                    datasets: chart.data.datasets.map(ds => ({
+                        label: ds.label,
+                        data: ds.data
+                    }))
+                });
+                
+                // 创建工作簿
+                const wb = XLSX.utils.book_new();
+                
+                // 创建数据工作表
+                const dataSheet = XLSX.utils.aoa_to_sheet([]);
+                
+                // 添加图表标题
+                const chartTitle = chart.data.datasets[0]?.label || '数据图表';
+                XLSX.utils.sheet_add_aoa(dataSheet, [[chartTitle]], {origin: 'A1'});
+                
+                // 添加表头
+                const headers = ['项目', ...chart.data.datasets.map(ds => ds.label || '数据')];
+                XLSX.utils.sheet_add_aoa(dataSheet, [headers], {origin: 'A3'});
+                
+                // 添加数据行
+                const dataRows = chart.data.labels.map((label, index) => {
+                    return [label, ...chart.data.datasets.map(ds => ds.data[index] || 0)];
+                });
+                XLSX.utils.sheet_add_aoa(dataSheet, dataRows, {origin: 'A4'});
+                
+                // 设置列宽
+                dataSheet['!cols'] = [
+                    {wch: 20}, // 项目列
+                    ...chart.data.datasets.map(() => ({wch: 15})) // 数据列
+                ];
+                
+                // 添加工作表到工作簿
+                XLSX.utils.book_append_sheet(wb, dataSheet, '图表数据');
+                
+                // 生成Excel文件并下载
+                XLSX.writeFile(wb, `${filename}.xlsx`);
+                
+                hideLoading();
+                updateAppStatus('Excel图表导出成功');
+            } catch (error) {
+                console.error('导出Excel图表时出错:', error);
+                hideLoading();
+                showErrorModal('Excel导出失败: ' + error.message);
+            }
+        }
+        
+        // 导出为图片
+        function exportToImage(filename, format) {
+            try {
+                // 获取图表容器
+                const chartContainer = document.querySelector('.chart-container');
+                if (!chartContainer) {
+                    throw new Error('图表容器不存在');
+                }
+                
+                html2canvas(chartContainer, {
+                    backgroundColor: '#ffffff',
+                    scale: 2, // 提高清晰度
+                    logging: false
+                }).then(canvas => {
+                    // 创建下载链接
+                    const link = document.createElement('a');
+                    link.download = `${filename}.${format}`;
+                    link.href = canvas.toDataURL(`image/${format}`);
+                    link.click();
+                    
+                    hideLoading();
+                    updateAppStatus('图表导出成功');
+                }).catch(error => {
+                    hideLoading();
+                    showErrorModal('图表导出失败: ' + error.message);
+                });
+            } catch (error) {
+                hideLoading();
+                showErrorModal('图表导出失败: ' + error.message);
+            }
+        }
+        
+        // 下载示例数据
+        function downloadSampleData() {
+            const sampleData = [
+                ['类别', '数值1', '数值2', '数值3'],
+                ['A', 10, 20, 30],
+                ['B', 15, 25, 35],
+                ['C', 20, 30, 40],
+                ['D', 25, 35, 45],
+                ['E', 30, 40, 50]
+            ];
+            
+            // 创建工作簿
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(sampleData);
+            
+            // 添加工作表到工作簿
+            XLSX.utils.book_append_sheet(wb, ws, '示例数据');
+            
+            // 生成Excel文件并下载
+            XLSX.writeFile(wb, 'excel-analyzer-sample.xlsx');
+            
+            updateAppStatus('示例数据下载成功');
+        }
+        
+        // 重置应用
+        function resetApp() {
+            // 清空数据
+            excelData = {
+                rawData: [],
+                headers: [],
+                rows: [],
+                columns: {},
+                titleRows: 1,
+                nameColumns: 1
+            };
+            selectedSeries = [];
+            charts = [];
+            originalFileName = '';
+            currentDataRange = {
+                row: null,
+                column: null,
+                startColumn: null,
+                endColumn: null,
+                startRow: null,
+                endRow: null
+            };
+            
+            // 重置UI
+            document.getElementById('upload-section').classList.remove('hidden');
+            document.getElementById('analysis-section').classList.add('hidden');
+            document.getElementById('file-input').value = '';
+            document.getElementById('selected-file').textContent = '未选择文件';
+            
+            // 重置配置
+            document.getElementById('title-rows').value = '1';
+            document.getElementById('name-columns').value = '1';
+            document.getElementById('chart-type').value = 'line';
+            
+            // 重置分析模式
+            setAnalysisMode('row');
+            
+            updateAppStatus('应用已重置');
+        }
+        
+        // 显示帮助模态框
+        function showHelpModal() {
+            document.getElementById('help-modal').classList.remove('hidden');
+        }
+        
+        // 隐藏帮助模态框
+        function hideHelpModal() {
+            document.getElementById('help-modal').classList.add('hidden');
+        }
+        
+        // 显示导出模态框
+        function showExportModal() {
+            if (charts.length === 0) {
+                showErrorModal('没有可导出的图表');
+                return;
+            }
+            
+            const filename = originalFileName.replace(/\.[^/.]+$/, '') || 'excel-chart';
+            document.getElementById('export-filename').value = filename;
+            document.getElementById('export-modal').classList.remove('hidden');
+        }
+        
+        // 隐藏导出模态框
+        function hideExportModal() {
+            document.getElementById('export-modal').classList.add('hidden');
+        }
+        
+        // 显示错误模态框
+        function showErrorModal(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-modal').classList.remove('hidden');
+        }
+        
+        // 隐藏错误模态框
+        function hideErrorModal() {
+            document.getElementById('error-modal').classList.add('hidden');
+        }
+        
+        // 显示加载中遮罩
+        function showLoading(text) {
+            document.getElementById('loading-text').textContent = text || '正在处理...';
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+        
+        // 隐藏加载中遮罩
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+        
+        // 更新应用状态
+        function updateAppStatus(status) {
+            document.getElementById('app-status').textContent = status;
+        }
+    </script>
+</body>
 </html>
